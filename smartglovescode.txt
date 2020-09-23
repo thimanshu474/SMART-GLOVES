@@ -1,0 +1,222 @@
+#include <avr/io.h>
+#include <util/delay.h>
+#include <stdio.h>
+
+#define SET_POINT 400
+#define BUZZER PORTD.2
+#define LED PORTD.3
+#define VOICE1 PORTD.4
+#define VOICE2 PORTD.5
+#define VOICE3 PORTD.6
+#define ADC_VREF_TYPE 0x40
+
+void ADC_init();
+void lcd_init();
+void lcd_cmd(char x);
+void lcd_data(char x);
+void lcd_databreak( char x);
+void lcd_cmdbreak( char x);
+void lcd_string(char *x);
+void ConvertAndDisplay(unsigned int value);
+void display(unsigned char s,unsigned char t,unsigned char u,unsigned char v);
+
+                                                 // Read the AD conversion result
+unsigned int read_adc(unsigned char adc_input)
+{
+ADMUX=ADC_VREF_TYPE;
+delay_us(10);                                   // Delay needed for the stabilization of the ADC input voltage
+
+                                               // Start the AD conversion
+ADCSRA|=(1<<ADSC);
+                                              // Wait for the AD conversion to complete
+while ((ADCSRA & (1<<ADIF))==0);
+ADCSRA |=(1<<ADIF);
+return ADCW;
+}
+
+void main(void)
+{
+unsigned int flex_sensor1, flex_sensor2;                      // Declare your local variables here
+DDRA=DDRA&~(1<<0) | (1<<1);                                     //Port A initialization setting pin0 and pin1 as input
+DDRB=0XFF;                                                    //PORT B initializaton
+DDRC=0XFF;                                                    //PORT C initializaton
+DDRD=0XFF;                                                    //PORT D initializaton
+
+
+
+
+	
+
+VOICE1=0;
+VOICE2=0;
+VOICE3=0;
+BUZZER=0;
+LED=1;
+
+while (1)
+      {
+         flex_sensor1 = read_adc(0);    
+         flex_sensor2 = read_adc(1);     
+         
+         if( flex_sensor1<SET_POINT && flex_sensor2<450 )
+         {            
+         VOICE1=1;
+         BUZZER=1;  
+         LED=0;
+         lcd_clear();
+         lcd_cmd(0x80);
+         lcd_string("PLEASE GIVE ME       ");
+         lcd_cmd(0xc0);     
+         lcd_string("GLASS OF WATER        ");   
+         delay_ms(1000);
+        // VOICE1=1;
+         }    
+         
+         else if( flex_sensor1<SET_POINT && flex_sensor2>SET_POINT )
+         {       
+         VOICE2=1;     
+         BUZZER=1;    
+         LED=0;
+         lcd_clear();
+         lcd_cmd(0x80);
+         lcd_string("PLEASE GIVE ME ");
+         lcd_cmd(0xc0);      
+         lcd_string("FOOD");   
+         delay_ms(1000);
+        // VOICE2=1;
+         }   
+         
+         else if( flex_sensor1>SET_POINT && flex_sensor2<SET_POINT)
+         {   
+         VOICE3=1; 
+         BUZZER=1;    
+         LED=0;
+         lcd_clear(); 
+         lcd_cmd(0x80);
+         lcd_string("PLEASE HELP ME        ");
+         lcd_cmd(0xc0);      
+         lcd_string("                     ");    
+         delay_ms(1000);
+         //VOICE3=1;
+         }  
+         else
+         {       
+          VOICE1=0;
+          VOICE2=0;
+          VOICE3=0;
+          BUZZER=0;   
+          LED=1;
+          lcd_clear();
+          lcd_cmd(0x80);
+          lcd_puts("THANK YOU            ");
+          lcd_cmd(0xc0);      
+          lcd_puts("                     ");
+         }  
+         
+         delay_ms(1000);
+      }
+}
+
+void ADC_init()                                               // Initialization of ADC
+{
+	ADMUX=ADC_VREF_TYPE;
+	ADCSRA=(1<<ADEN) | (1<<ADPS2) | (0<<ADPS1) |  (1<<ADPS0);
+}
+
+void lcd_init()
+{
+	lcd_cmd(0x02);
+	lcd_cmd(0x28);
+	lcd_cmd(0x06);
+        lcd_cmd(0x0e);
+	lcd_cmd(0x80);	
+}
+
+
+void lcd_cmd(char x)
+{
+	PORTD=x;
+	PORTC=PORTC&~(1<<0);
+	PORTC=PORTC&~(1<<1);
+	PORTC=PORTC|(1<<2);
+	_delay_ms(1);
+	PORTC=PORTC&~(1<<2);
+	_delay_ms(1);
+	PORTD=0x00;
+}
+	
+void lcd_data(char x)
+{
+	PORTD=x;
+	PORTC=PORTC|(1<<0);
+	PORTC=PORTC&~(1<<1);
+	PORTC=PORTC|(1<<2);
+	_delay_ms(1);
+	PORTC=PORTC&~(1<<2);
+	_delay_ms(1);
+	PORTD=0x00;
+}
+
+void lcd_databreak( char x)
+{
+	lcd_data(x&0xf0);
+	lcd_data((x<<4)&0xf0);
+}
+	
+void lcd_cmdbreak( char x)
+{
+    lcd_cmd(x&0xf0);
+	lcd_cmd((x<<4)&0xf0);
+}
+
+void lcd_string(char *x)
+{
+	while(*x != '\0')
+	{
+		lcd_data(*x);
+		x++;
+	}
+}	
+
+
+void display(unsigned char s,unsigned char t,unsigned char u,unsigned char v)
+{
+s=s+0x30;			//convert each digit to equivalent ASCII value
+t=t+0x30;
+u=u+0x30;
+v=v+0x30;
+
+lcd_data(v);
+delay_ms(50);
+lcd_data(u);
+delay_ms(50);
+lcd_data(t);
+delay_ms(50);
+lcd_data(s);
+delay_ms(50);
+}
+
+void ConvertAndDisplay(unsigned int value)
+{
+unsigned int i,a=0;
+unsigned char d1,d2,d3,d4;
+for(i=0;i<value;i++)
+a=a+1;
+
+d1=a%10;		//digits before desible point
+a=a/10;
+d2=a%10;
+a=a/10;
+d3=a%10;
+a=a/10;
+d4=a%10;
+
+display(d1,d2,d3,d4);
+}
+ 
+
+
+
+
+
+    
